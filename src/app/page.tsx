@@ -137,8 +137,10 @@ type MockObjectiveItem = ObjectiveItem & {
 const mockItems: MockObjectiveItem[] = [
   {
     id: "1",
+    legacy_id: "mock-1",
     instruction_id: "INS-01",
     work_line_id: "WL-01",
+    work_line_sort_order: 1,
     item_id: "OBJ-001",
     commission: "Comisión A",
     instruction: "Instrucción 1",
@@ -152,8 +154,10 @@ const mockItems: MockObjectiveItem[] = [
   },
   {
     id: "2",
+    legacy_id: "mock-2",
     instruction_id: "INS-01",
     work_line_id: "WL-02",
+    work_line_sort_order: 2,
     item_id: "OBJ-002",
     commission: "Comisión A",
     instruction: "Instrucción 2",
@@ -167,8 +171,10 @@ const mockItems: MockObjectiveItem[] = [
   },
   {
     id: "3",
+    legacy_id: "mock-3",
     instruction_id: "INS-02",
     work_line_id: "WL-03",
+    work_line_sort_order: 3,
     item_id: "OBJ-003",
     commission: "Comisión B",
     instruction: "Instrucción 1",
@@ -182,8 +188,10 @@ const mockItems: MockObjectiveItem[] = [
   },
   {
     id: "4",
+    legacy_id: "mock-4",
     instruction_id: "INS-03",
     work_line_id: "WL-04",
+    work_line_sort_order: 4,
     item_id: "OBJ-004",
     commission: "Comisión C",
     instruction: "Instrucción 3",
@@ -196,6 +204,21 @@ const mockItems: MockObjectiveItem[] = [
     year: 2026,
   },
 ]
+
+const compareObjectiveItems = (a: ObjectiveItem, b: ObjectiveItem) => {
+  const instructionCompare = (a.instruction ?? "").localeCompare(
+    b.instruction ?? "",
+  )
+  if (instructionCompare !== 0) return instructionCompare
+  const workLineOrderA = a.work_line_sort_order ?? 999
+  const workLineOrderB = b.work_line_sort_order ?? 999
+  if (workLineOrderA !== workLineOrderB) {
+    return workLineOrderA - workLineOrderB
+  }
+  const workLineCompare = (a.work_line ?? "").localeCompare(b.work_line ?? "")
+  if (workLineCompare !== 0) return workLineCompare
+  return (a.item_objective ?? "").localeCompare(b.item_objective ?? "")
+}
 
 type MultiSelectFilterProps = {
   title: string
@@ -236,12 +259,6 @@ const MultiSelectFilter = ({
     }
   }, [open])
 
-  useEffect(() => {
-    if (disabled) {
-      setOpen(false)
-    }
-  }, [disabled])
-
   return (
     <div ref={containerRef} className="relative z-20 space-y-2">
       <p className="text-sm font-medium text-zinc-600">{title}</p>
@@ -258,7 +275,7 @@ const MultiSelectFilter = ({
             <span>{label}</span>
             <ChevronDown className="size-4 text-zinc-400" />
           </button>
-          {open && (
+          {open && !disabled && (
             <div className="absolute left-0 z-50 mt-2 w-72 rounded-md border border-zinc-200 bg-white p-2 shadow-lg">
             {options.length === 0 ? (
               <div className="px-2 py-3 text-xs text-zinc-500">
@@ -348,33 +365,14 @@ export default function Home() {
   })
 
   const selectedRows = useMemo(() => {
-    return Object.values(selectedItems).sort((a, b) => {
-      const instructionCompare = (a.item.instruction ?? "").localeCompare(
-        b.item.instruction ?? "",
-      )
-      if (instructionCompare !== 0) return instructionCompare
-      const workLineCompare = (a.item.work_line ?? "").localeCompare(
-        b.item.work_line ?? "",
-      )
-      if (workLineCompare !== 0) return workLineCompare
-      return (a.item.item_objective ?? "").localeCompare(
-        b.item.item_objective ?? "",
-      )
-    })
+    return Object.values(selectedItems).sort((a, b) =>
+      compareObjectiveItems(a.item, b.item),
+    )
   }, [selectedItems])
   const selectedIds = useMemo(() => Object.keys(selectedItems), [selectedItems])
   const availableItems = useMemo(() => {
     return allObjectiveItems.filter((item) => !selectedIds.includes(item.id))
   }, [allObjectiveItems, selectedIds])
-  const compareObjectiveItems = (a: ObjectiveItem, b: ObjectiveItem) => {
-    const instructionCompare = (a.instruction ?? "").localeCompare(
-      b.instruction ?? "",
-    )
-    if (instructionCompare !== 0) return instructionCompare
-    const workLineCompare = (a.work_line ?? "").localeCompare(b.work_line ?? "")
-    if (workLineCompare !== 0) return workLineCompare
-    return (a.item_objective ?? "").localeCompare(b.item_objective ?? "")
-  }
   const instructionOptions = useMemo(() => {
     const set = new Set<string>()
     allObjectiveItems.forEach((item) => {
@@ -401,13 +399,24 @@ export default function Home() {
     })
     return Array.from(set).sort((a, b) => a.localeCompare(b))
   }, [availableInstructionFilters.length, availableInstructionFilteredItems])
+  const effectiveAvailableWorkLineFilters = useMemo(() => {
+    if (availableInstructionFilters.length === 0) return []
+    const activeOptions = new Set(availableWorkLineOptions)
+    return availableWorkLineFilters.filter((line) => activeOptions.has(line))
+  }, [
+    availableInstructionFilters.length,
+    availableWorkLineFilters,
+    availableWorkLineOptions,
+  ])
   const filteredAvailableItems = useMemo(() => {
-    if (availableWorkLineFilters.length === 0) return availableInstructionFilteredItems
-    const active = new Set(availableWorkLineFilters)
+    if (effectiveAvailableWorkLineFilters.length === 0) {
+      return availableInstructionFilteredItems
+    }
+    const active = new Set(effectiveAvailableWorkLineFilters)
     return availableInstructionFilteredItems.filter((item) =>
       item.work_line ? active.has(item.work_line) : false,
     )
-  }, [availableInstructionFilteredItems, availableWorkLineFilters])
+  }, [availableInstructionFilteredItems, effectiveAvailableWorkLineFilters])
   const groupedAvailableItems = useMemo(() => {
     const map = new Map<string, ObjectiveItem[]>()
     filteredAvailableItems.forEach((item) => {
@@ -438,13 +447,24 @@ export default function Home() {
     })
     return Array.from(set).sort((a, b) => a.localeCompare(b))
   }, [selectedInstructionFilters.length, selectedInstructionFilteredRows])
+  const effectiveSelectedWorkLineFilters = useMemo(() => {
+    if (selectedInstructionFilters.length === 0) return []
+    const activeOptions = new Set(selectedWorkLineOptions)
+    return selectedWorkLineFilters.filter((line) => activeOptions.has(line))
+  }, [
+    selectedInstructionFilters.length,
+    selectedWorkLineFilters,
+    selectedWorkLineOptions,
+  ])
   const filteredSelectedRows = useMemo(() => {
-    if (selectedWorkLineFilters.length === 0) return selectedInstructionFilteredRows
-    const active = new Set(selectedWorkLineFilters)
+    if (effectiveSelectedWorkLineFilters.length === 0) {
+      return selectedInstructionFilteredRows
+    }
+    const active = new Set(effectiveSelectedWorkLineFilters)
     return selectedInstructionFilteredRows.filter((row) =>
       row.item.work_line ? active.has(row.item.work_line) : false,
     )
-  }, [selectedInstructionFilteredRows, selectedWorkLineFilters])
+  }, [effectiveSelectedWorkLineFilters, selectedInstructionFilteredRows])
   const groupedSelectedRows = useMemo(() => {
     const map = new Map<string, typeof selectedRows>()
     filteredSelectedRows.forEach((row) => {
@@ -456,44 +476,6 @@ export default function Home() {
     })
     return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]))
   }, [filteredSelectedRows])
-
-  useEffect(() => {
-    if (availableInstructionFilters.length === 0) {
-      if (availableWorkLineFilters.length > 0) {
-        setAvailableWorkLineFilters([])
-      }
-      return
-    }
-    if (availableWorkLineFilters.length === 0) return
-    const active = new Set(availableWorkLineOptions)
-    const next = availableWorkLineFilters.filter((line) => active.has(line))
-    if (next.length !== availableWorkLineFilters.length) {
-      setAvailableWorkLineFilters(next)
-    }
-  }, [
-    availableInstructionFilters.length,
-    availableWorkLineFilters,
-    availableWorkLineOptions,
-  ])
-
-  useEffect(() => {
-    if (selectedInstructionFilters.length === 0) {
-      if (selectedWorkLineFilters.length > 0) {
-        setSelectedWorkLineFilters([])
-      }
-      return
-    }
-    if (selectedWorkLineFilters.length === 0) return
-    const active = new Set(selectedWorkLineOptions)
-    const next = selectedWorkLineFilters.filter((line) => active.has(line))
-    if (next.length !== selectedWorkLineFilters.length) {
-      setSelectedWorkLineFilters(next)
-    }
-  }, [
-    selectedInstructionFilters.length,
-    selectedWorkLineFilters,
-    selectedWorkLineOptions,
-  ])
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -745,7 +727,7 @@ export default function Home() {
         <header className="flex flex-col gap-4">
           <div className="flex items-center gap-3">
             <Button asChild variant="outline" size="sm">
-              <Link href="/login">Acceso admin</Link>
+              <Link href="/admin/dashboard">Acceso admin</Link>
             </Button>
           </div>
           <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">
@@ -830,7 +812,7 @@ export default function Home() {
                     <MultiSelectFilter
                       title="Filtrar items disponibles por linea de trabajo"
                       options={availableWorkLineOptions}
-                      value={availableWorkLineFilters}
+                      value={effectiveAvailableWorkLineFilters}
                       onChange={setAvailableWorkLineFilters}
                       placeholder="Todas las lineas"
                       disabled={availableInstructionFilters.length === 0}
@@ -841,7 +823,7 @@ export default function Home() {
                       size="sm"
                       onClick={() => setAvailableWorkLineFilters([])}
                       disabled={
-                        availableWorkLineFilters.length === 0 ||
+                        effectiveAvailableWorkLineFilters.length === 0 ||
                         availableInstructionFilters.length === 0
                       }
                     >
@@ -1022,7 +1004,7 @@ export default function Home() {
                     <MultiSelectFilter
                       title="Filtrar items del informe por linea de trabajo"
                       options={selectedWorkLineOptions}
-                      value={selectedWorkLineFilters}
+                      value={effectiveSelectedWorkLineFilters}
                       onChange={setSelectedWorkLineFilters}
                       placeholder="Todas las lineas"
                       disabled={selectedInstructionFilters.length === 0}
@@ -1033,7 +1015,7 @@ export default function Home() {
                       size="sm"
                       onClick={() => setSelectedWorkLineFilters([])}
                       disabled={
-                        selectedWorkLineFilters.length === 0 ||
+                        effectiveSelectedWorkLineFilters.length === 0 ||
                         selectedInstructionFilters.length === 0
                       }
                     >

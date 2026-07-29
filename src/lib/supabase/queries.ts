@@ -22,6 +22,7 @@ const normalizeObjectiveItem = (item: ItemsExportRecord): ObjectiveItem | null =
 
   return {
     id: item.item_uuid,
+    legacy_id: item.item_legacy_id ?? null,
     item_id: item.item_code ?? null,
     commission: item.commission ?? null,
     instruction: item.instruction,
@@ -29,6 +30,7 @@ const normalizeObjectiveItem = (item: ItemsExportRecord): ObjectiveItem | null =
     submatter: item.submatter ?? null,
     work_line: item.work_line ?? null,
     work_line_id: item.work_line_id ?? null,
+    work_line_sort_order: item.work_line_sort_order ?? null,
     item_objective: item.title ?? null,
     item_objective_2: null,
     status: item.status ?? null,
@@ -39,8 +41,8 @@ const normalizeObjectiveItem = (item: ItemsExportRecord): ObjectiveItem | null =
 export const fetchInstructions = async (): Promise<InstructionOption[]> => {
   const supabase = getSupabaseBrowserClient()
   const { data, error } = await supabase
-    .from("instructions")
-    .select("id,name,commission:commissions(name)")
+    .from("informeobjetivos_instructions")
+    .select("id,legacy_id,name,commission:informeobjetivos_commissions(name)")
     .order("name", { ascending: true })
 
   if (error) {
@@ -50,6 +52,7 @@ export const fetchInstructions = async (): Promise<InstructionOption[]> => {
   const rows =
     (data as Array<{
       id: string
+      legacy_id: string
       name: string
       commission?: { name?: string } | null
     }>) ?? []
@@ -66,8 +69,8 @@ export const fetchWorkLinesForInstruction = async (
 ): Promise<WorkLineOption[]> => {
   const supabase = getSupabaseBrowserClient()
   const { data, error } = await supabase
-    .from("items_objetivo")
-    .select("work_line_id, work_lines(id, display_name, code, sort_order)")
+    .from("informeobjetivos_items_objetivo")
+    .select("work_line_id, work_lines:informeobjetivos_work_lines(id,legacy_id,display_name,code,sort_order)")
     .eq("instruction_id", instructionId)
     .or("status.is.null,status.neq.ELIMINAR")
 
@@ -103,7 +106,7 @@ export const fetchItemsForInstructionAndWorkLine = async (
 ): Promise<ObjectiveItem[]> => {
   const supabase = getSupabaseBrowserClient()
   const { data, error } = await supabase
-    .from("v_items_export")
+    .from("informeobjetivos_v_items_export")
     .select("*")
     .eq("instruction_id", instructionId)
     .eq("work_line_id", workLineId)
@@ -122,9 +125,11 @@ export const fetchItemsForInstructionAndWorkLine = async (
 export const fetchItemsExport = async (): Promise<ItemsExportRecord[]> => {
   const supabase = getSupabaseBrowserClient()
   const { data, error } = await supabase
-    .from("v_items_export")
+    .from("informeobjetivos_v_items_export")
     .select("*")
     .order("instruction", { ascending: true })
+    .order("work_line_sort_order", { ascending: true })
+    .order("title", { ascending: true })
 
   if (error) {
     throw error
@@ -136,11 +141,11 @@ export const fetchItemsExport = async (): Promise<ItemsExportRecord[]> => {
 export const fetchAllObjectiveItems = async (): Promise<ObjectiveItem[]> => {
   const supabase = getSupabaseBrowserClient()
   const { data, error } = await supabase
-    .from("v_items_export")
+    .from("informeobjetivos_v_items_export")
     .select("*")
     .or("status.is.null,status.neq.ELIMINAR")
     .order("instruction", { ascending: true })
-    .order("work_line", { ascending: true })
+    .order("work_line_sort_order", { ascending: true })
     .order("title", { ascending: true })
 
   if (error) {
@@ -155,8 +160,8 @@ export const fetchAllObjectiveItems = async (): Promise<ObjectiveItem[]> => {
 export const fetchCommissions = async (): Promise<CommissionRecord[]> => {
   const supabase = getSupabaseBrowserClient()
   const { data, error } = await supabase
-    .from("commissions")
-    .select("id,name")
+    .from("informeobjetivos_commissions")
+    .select("id,legacy_id,name")
     .order("name", { ascending: true })
 
   if (error) {
@@ -171,8 +176,8 @@ export const fetchInstructionsByCommission = async (
 ): Promise<InstructionRecord[]> => {
   const supabase = getSupabaseBrowserClient()
   const { data, error } = await supabase
-    .from("instructions")
-    .select("id,commission_id,name,legacy_instruction_id")
+    .from("informeobjetivos_instructions")
+    .select("id,legacy_id,commission_id,name,name_i18n,legacy_instruction_id")
     .eq("commission_id", commissionId)
     .order("name", { ascending: true })
 
@@ -186,8 +191,8 @@ export const fetchInstructionsByCommission = async (
 export const fetchInstructionById = async (id: string) => {
   const supabase = getSupabaseBrowserClient()
   const { data, error } = await supabase
-    .from("instructions")
-    .select("id,commission_id,name,legacy_instruction_id")
+    .from("informeobjetivos_instructions")
+    .select("id,legacy_id,commission_id,name,name_i18n,legacy_instruction_id")
     .eq("id", id)
     .single()
 
@@ -203,8 +208,8 @@ export const fetchMattersByInstruction = async (
 ): Promise<MatterRecord[]> => {
   const supabase = getSupabaseBrowserClient()
   const { data, error } = await supabase
-    .from("matters")
-    .select("id,instruction_id,name")
+    .from("informeobjetivos_matters")
+    .select("id,legacy_id,instruction_id,name")
     .eq("instruction_id", instructionId)
     .order("name", { ascending: true })
 
@@ -220,8 +225,8 @@ export const fetchSubmattersByMatter = async (
 ): Promise<SubmatterRecord[]> => {
   const supabase = getSupabaseBrowserClient()
   const { data, error } = await supabase
-    .from("submatters")
-    .select("id,matter_id,name")
+    .from("informeobjetivos_submatters")
+    .select("id,legacy_id,matter_id,name")
     .eq("matter_id", matterId)
     .order("name", { ascending: true })
 
@@ -235,8 +240,8 @@ export const fetchSubmattersByMatter = async (
 export const fetchSubmatterById = async (id: string) => {
   const supabase = getSupabaseBrowserClient()
   const { data, error } = await supabase
-    .from("submatters")
-    .select("id,matter_id,name")
+    .from("informeobjetivos_submatters")
+    .select("id,legacy_id,matter_id,name")
     .eq("id", id)
     .single()
 
@@ -250,8 +255,8 @@ export const fetchSubmatterById = async (id: string) => {
 export const fetchWorkLines = async (): Promise<WorkLineRecord[]> => {
   const supabase = getSupabaseBrowserClient()
   const { data, error } = await supabase
-    .from("work_lines")
-    .select("id,code,display_name,sort_order")
+    .from("informeobjetivos_work_lines")
+    .select("id,legacy_id,code,display_name,display_name_i18n,sort_order")
     .order("sort_order", { ascending: true })
 
   if (error) {
@@ -264,7 +269,7 @@ export const fetchWorkLines = async (): Promise<WorkLineRecord[]> => {
 export const createItemObjetivo = async (payload: ItemObjetivoInput) => {
   const supabase = getSupabaseBrowserClient()
   const { data, error } = await supabase
-    .from("items_objetivo")
+    .from("informeobjetivos_items_objetivo")
     .insert(payload as never)
     .select("*")
     .single()
@@ -282,7 +287,7 @@ export const updateItemObjetivo = async (
 ) => {
   const supabase = getSupabaseBrowserClient()
   const { data, error } = await supabase
-    .from("items_objetivo")
+    .from("informeobjetivos_items_objetivo")
     .update(payload as never)
     .eq("id", id)
     .select("*")
@@ -298,7 +303,7 @@ export const updateItemObjetivo = async (
 export const deleteItemObjetivo = async (id: string) => {
   const supabase = getSupabaseBrowserClient()
   const { error } = await supabase
-    .from("items_objetivo")
+    .from("informeobjetivos_items_objetivo")
     .delete()
     .eq("id", id)
 
@@ -310,7 +315,7 @@ export const deleteItemObjetivo = async (id: string) => {
 export const fetchItemObjetivoById = async (id: string) => {
   const supabase = getSupabaseBrowserClient()
   const { data, error } = await supabase
-    .from("items_objetivo")
+    .from("informeobjetivos_items_objetivo")
     .select("*")
     .eq("id", id)
     .single()

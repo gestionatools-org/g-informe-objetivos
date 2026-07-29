@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
-import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -32,7 +31,6 @@ import {
   fetchWorkLines,
   updateItemObjetivo,
 } from "@/lib/supabase/queries"
-import { getSupabaseBrowserClient } from "@/lib/supabase/client"
 import type {
   CommissionRecord,
   InstructionRecord,
@@ -85,7 +83,6 @@ const toPayload = (values: z.infer<typeof formSchema>): ItemObjetivoInput => {
 }
 
 export default function AdminDashboardPage() {
-  const router = useRouter()
   const [items, setItems] = useState<ItemsExportRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -138,30 +135,11 @@ export default function AdminDashboardPage() {
 
     const init = async () => {
       try {
-        if (
-          !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-          !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
-        ) {
-          if (!localStorage.getItem("mock-admin")) {
-            router.replace("/login")
-            return
-          }
-          await loadItems()
-          await loadDimensions()
-          return
-        }
-
-        const supabase = getSupabaseBrowserClient()
-        const { data } = await supabase.auth.getSession()
         if (!active) return
-        if (!data.session) {
-          router.replace("/login")
-          return
-        }
         await loadItems()
         await loadDimensions()
       } catch (error) {
-        toast.error("No se pudo validar la sesion.")
+        toast.error("No se pudo cargar el dashboard.")
       }
     }
 
@@ -170,7 +148,7 @@ export default function AdminDashboardPage() {
     return () => {
       active = false
     }
-  }, [router])
+  }, [])
 
   useEffect(() => {
     if (!selectedCommissionId) {
@@ -239,21 +217,7 @@ export default function AdminDashboardPage() {
   }, [selectedMatterId])
 
   const handleLogout = async () => {
-    try {
-      if (
-        !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-        !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
-      ) {
-        localStorage.removeItem("mock-admin")
-        router.replace("/login")
-        return
-      }
-      const supabase = getSupabaseBrowserClient()
-      await supabase.auth.signOut()
-      router.replace("/login")
-    } catch (error) {
-      toast.error("No se pudo cerrar sesion.")
-    }
+    window.location.href = "/logout"
   }
 
   const handleEdit = (item: ItemsExportRecord) => {

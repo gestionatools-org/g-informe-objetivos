@@ -11,39 +11,45 @@ type UseInstructionsOptions = {
 
 export const useInstructions = (options: UseInstructionsOptions = {}) => {
   const { enabled = true, fallback = [] } = options
-  const [data, setData] = useState<InstructionOption[]>(fallback)
-  const [error, setError] = useState<Error | null>(null)
-  const [loading, setLoading] = useState(enabled)
+  const requestKey = enabled ? "instructions" : "disabled"
+  const [state, setState] = useState<{
+    data: InstructionOption[]
+    error: Error | null
+    requestKey: string
+  }>({
+    data: fallback,
+    error: null,
+    requestKey: "",
+  })
 
   useEffect(() => {
     if (!enabled) {
-      setData(fallback)
-      setError(null)
-      setLoading(false)
       return
     }
 
     let active = true
-    setLoading(true)
     fetchInstructions()
       .then((items) => {
         if (!active) return
-        setData(items)
-        setError(null)
+        setState({ data: items, error: null, requestKey })
       })
       .catch((err: Error) => {
         if (!active) return
-        setError(err)
-      })
-      .finally(() => {
-        if (!active) return
-        setLoading(false)
+        setState({ data: [], error: err, requestKey })
       })
 
     return () => {
       active = false
     }
-  }, [enabled, fallback])
+  }, [enabled, requestKey])
 
-  return { data, error, loading }
+  if (!enabled) {
+    return { data: fallback, error: null, loading: false }
+  }
+
+  return {
+    data: state.data,
+    error: state.error,
+    loading: state.requestKey !== requestKey,
+  }
 }

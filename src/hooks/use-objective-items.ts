@@ -15,41 +15,48 @@ export const useObjectiveItems = (
   options: UseObjectiveItemsOptions = {},
 ) => {
   const { enabled = true, fallback = [] } = options
-  const [data, setData] = useState<ObjectiveItem[]>(fallback)
-  const [error, setError] = useState<Error | null>(null)
-  const [loading, setLoading] = useState(
-    enabled && Boolean(instructionId) && Boolean(workLineId),
-  )
+  const shouldFetch = enabled && Boolean(instructionId) && Boolean(workLineId)
+  const requestKey = shouldFetch
+    ? `${instructionId}:${workLineId}`
+    : "disabled"
+  const [state, setState] = useState<{
+    data: ObjectiveItem[]
+    error: Error | null
+    requestKey: string
+  }>({
+    data: fallback,
+    error: null,
+    requestKey: "",
+  })
 
   useEffect(() => {
-    if (!enabled || !instructionId || !workLineId) {
-      setData(fallback)
-      setError(null)
-      setLoading(false)
+    if (!shouldFetch) {
       return
     }
 
     let active = true
-    setLoading(true)
     fetchItemsForInstructionAndWorkLine(instructionId, workLineId)
       .then((items) => {
         if (!active) return
-        setData(items)
-        setError(null)
+        setState({ data: items, error: null, requestKey })
       })
       .catch((err: Error) => {
         if (!active) return
-        setError(err)
-      })
-      .finally(() => {
-        if (!active) return
-        setLoading(false)
+        setState({ data: [], error: err, requestKey })
       })
 
     return () => {
       active = false
     }
-  }, [enabled, fallback, instructionId, workLineId])
+  }, [instructionId, requestKey, shouldFetch, workLineId])
 
-  return { data, error, loading }
+  if (!shouldFetch) {
+    return { data: fallback, error: null, loading: false }
+  }
+
+  return {
+    data: state.data,
+    error: state.error,
+    loading: state.requestKey !== requestKey,
+  }
 }

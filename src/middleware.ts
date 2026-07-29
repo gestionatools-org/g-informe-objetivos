@@ -1,26 +1,48 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import {
+  APP_SESSION_COOKIE,
+  verifyLocalSessionCookie,
+} from "@/lib/hub-sso/session"
 
-const HUB_FALLBACK = "https://g-apps-hub.vercel.app"
+const publicPathPrefixes = ["/sso", "/logout"]
 
-export function middleware(request: NextRequest) {
+const redirectToHub = () => {
+  const hubBaseUrl = process.env.HUB_BASE_URL
+  const hubAppId = process.env.HUB_APP_ID
+
+  if (!hubBaseUrl || !hubAppId) {
+    return new NextResponse("Missing SSO configuration", { status: 500 })
+  }
+
+  const hubUrl = new URL("/sso", hubBaseUrl)
+  hubUrl.searchParams.set("app", hubAppId)
+  const response = NextResponse.redirect(hubUrl)
+  response.cookies.delete(APP_SESSION_COOKIE)
+  return response
+}
+
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  if (pathname.startsWith("/sso")) {
+  if (publicPathPrefixes.some((prefix) => pathname.startsWith(prefix))) {
     return NextResponse.next()
   }
 
-  const sessionCookie = request.cookies.get("app_session")
-  if (sessionCookie?.value) {
-    return NextResponse.next()
+  const session = await verifyLocalSessionCookie(
+    request.cookies.get(APP_SESSION_COOKIE)?.value,
+    process.env.APP_SESSION_SECRET,
+  )
+
+  if (!session) {
+    return redirectToHub()
   }
 
-  const hubBaseUrl = process.env.HUB_BASE_URL || HUB_FALLBACK
-  const redirectUrl = encodeURIComponent(request.nextUrl.href)
-  const target = `${hubBaseUrl}/sso?redirect=${redirectUrl}`
-  return NextResponse.redirect(target)
+  return NextResponse.next()
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|sso).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|Gestiona-RGB.png|robots.txt).*)",
+  ],
 }

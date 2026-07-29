@@ -7,7 +7,7 @@ El sistema permite a los **Administradores** configurar un catálogo de ítems j
 ## 2. User Roles
 
 ### A. Administrador (Auth Required)
-- **Acceso:** Login vía Supabase Auth (Email/Password).
+- **Acceso:** SSO central del Hub GestionaTools con token HMAC verificado server-side y sesión local mínima.
 - **Permisos:**
   - Crear, Leer, Actualizar y Borrar (CRUD) los Ítems de Configuración.
   - Gestionar la jerarquía de datos.
@@ -50,16 +50,16 @@ El sistema permite a los **Administradores** configurar un catálogo de ítems j
 
 ### Tablas normalizadas
 
-- `commissions` (id, name, created_at)
-- `instructions` (id, commission_id, name, created_at, legacy_instruction_id optional)
-- `matters` (id, instruction_id, name, created_at)
-- `submatters` (id, matter_id, name, created_at)
-- `work_lines` (id, code, display_name, sort_order, created_at)
-- `items_objetivo` (id, instruction_id, submatter_id, work_line_id, title, status, year, legacy_item_code, created_at)
+- `informeobjetivos_commissions` (id, name, created_at)
+- `informeobjetivos_instructions` (id, commission_id, name, created_at, legacy_instruction_id optional)
+- `informeobjetivos_matters` (id, instruction_id, name, created_at)
+- `informeobjetivos_submatters` (id, matter_id, name, created_at)
+- `informeobjetivos_work_lines` (id, code, display_name, sort_order, created_at)
+- `informeobjetivos_items_objetivo` (id, instruction_id, submatter_id, work_line_id, title, status, year, legacy_item_code, created_at)
 
 ### View de lectura (plana)
 
-- `v_items_export` con columnas para UI/PDF:
+- `informeobjetivos_v_items_export` con columnas para UI/PDF:
   - item_uuid, item_code, title, status, year
   - instruction_uuid, instruction, commission
   - matter, submatter
@@ -67,22 +67,24 @@ El sistema permite a los **Administradores** configurar un catálogo de ítems j
 
 Relaciones:
 
-1 instruction tiene n work_lines
-1 work_line tiene n items_objetivo
+1 instruccion tiene n lineas de trabajo
+1 linea de trabajo tiene n items objetivo
 
 Notas:
 - El plazo no se almacena en la tabla; se selecciona al exportar.
 
 **Row Level Security (RLS) Policies:**
 1. **Enable RLS.**
-2. **Policy Public Read:** `SELECT` allowed for `anon` role (true) sobre tablas de lectura y/o `v_items_export`.
-3. **Policy Admin Full:** `ALL` allowed for `authenticated` users only en tablas de escritura.
+2. **Policy Authenticated/SSO Read:** `SELECT` para usuarios autenticados por el flujo SSO cuando quede definido el puente de identidad con Supabase.
+3. **Policy Admin Full:** `ALL` para usuarios administradores, previsiblemente mediante `users.admin = true`.
 
 ## 5. Site Map & Routing
 
 - `src/app/page.tsx` -> **Vista Pública.** Formulario de entrada (Entidad/Gestor) + Selección de Ítems + Botón "Exportar PDF".
-- `src/app/login/page.tsx` -> Formulario de acceso para admins.
-- `src/app/admin/dashboard/page.tsx` -> **Vista Privada.** CRUD de `items_objetivo`.
+- `src/app/sso/route.ts` -> Entrada SSO desde el Hub (`GET /sso?token=...`).
+- `src/app/logout/route.ts` -> Logout local de esta app.
+- `src/app/login/page.tsx` -> Compatibilidad: redirige al dashboard protegido.
+- `src/app/admin/dashboard/page.tsx` -> **Vista Privada.** CRUD de `informeobjetivos_items_objetivo`.
 
 ## 6. UI/UX Guidelines (shadcn/ui)
 
